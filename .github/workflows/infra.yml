@@ -1,0 +1,41 @@
+name: infra
+on:
+  pull_request:
+    paths: ['infra/**', '.github/workflows/infra.yml']
+  workflow_dispatch:
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: arn:aws:iam::042617239394:role/myapp-infra-plan
+          aws-region: eu-central-1
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_wrapper: false
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: ~/.terraform.d
+          key: tfproviders-${{ runner.os }}-${{ hashFiles('infra/**/*.tf') }}
+          restore-keys: tfproviders-
+      - run: terraform init
+        working-directory: infra/envs/dev
+      - run: terraform fmt -check -recursive
+      - run: terraform validate
+        working-directory: infra/envs/dev
+      - run: terraform plan -no-color -out=tfplan
+        working-directory: infra/envs/dev
+      - run: terraform show -no-color tfplan > plan.txt
+        working-directory: infra/envs/dev
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tfplan
+          path: infra/envs/dev/tfplan

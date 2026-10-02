@@ -1,0 +1,102 @@
+name: cd
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    environment: production
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: arn:aws:iam::042617239394:role/myapp-ci-ecr-push
+          aws-region: eu-central-1
+      - uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+      - id: meta
+        run: echo "image=042617239394.dkr.ecr.eu-central-1.amazonaws.com/myapp:${{ github.sha }}" >> $GITHUB_OUTPUT
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: ./nodeapp
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            042617239394.dkr.ecr.eu-central-1.amazonaws.com/myapp:v1.0.0
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: arn:aws:iam::042617239394:role/myapp-infra-apply
+          aws-region: eu-central-1
+      - uses: aws-actions/amazon-eks-kubeconfig@2f0522fca0b8f6b0b2b32e75c0a9c5c129c1f7b0
+        with:
+          cluster-name: myapp-dev
+          region: eu-central-1
+      - name: Deploy with kubectl
+        run: |
+          kubectl create ns app --dry-run=client -o yaml | kubectl apply -f -
+          cat > /tmp/deploy.yaml << 'YAML'
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: app
+            namespace: app
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: myapp
+            namespace: app
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: myapp
+            template:
+              metadata:
+                labels:
+                  app: myapp
+              spec:
+                serviceAccountName: app
+                containers:
+                - name: myapp
+                  image: ${{ needs.build-and-push.outputs.image }}
+                  ports:
+                  - containerPort: 3000
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: myapp
+            namespace: app
+          spec:
+            type: ClusterIP
+            ports:
+            - port: 80
+              targetPort: 3000
+            selector:
+              app: myapp
+          YAML
+          kubectl apply -f /tmp/deploy.yaml
