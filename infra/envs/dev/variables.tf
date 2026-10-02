@@ -19,7 +19,7 @@ variable "github_repo" {
 variable "github_repo_subject" {
   type        = string
   description = "GitHub subject with immutable IDs (org@ID/repo@ID)"
-  default     = ""
+  default     = "Bishoy-Samwel@29541335/eks-github-actions@1401416906"
 }
 
 variable "create_oidc_provider" {
