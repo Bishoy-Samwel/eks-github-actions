@@ -1,0 +1,42 @@
+# ── Unpublished working docs ─────────────────────────────────────────
+# The full documentation set is kept locally as the working copy. Only the
+# README is published, so a reader gets the landing page without the
+# internal runbooks. Delete this block to publish docs/ as well.
+docs/
+
+# ── Terraform ─────────────────────────────────────────────────────────
+# Patterns exist so that copying a .tf file in from the source project
+# cannot commit provider binaries, lock files, or state.
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ── Secrets ───────────────────────────────────────────────────────────
+# Terraform state holds plaintext credentials. Never commit it.
+*.pem
+*.key
+!*.pub
+.env
+.env.*
+*.csv
+credentials
+.aws/
+
+# ── Local artefacts ───────────────────────────────────────────────────
+*.log
+*.tfplan
+tfplan
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
