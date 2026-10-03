@@ -144,6 +144,17 @@ resource "aws_iam_role_policy" "infra_plan" {
   policy = data.aws_iam_policy_document.infra_plan_policy.json
 }
 
+# `terraform plan` refreshes every resource in the configuration, so it needs
+# read access to EKS, EC2, IAM, Secrets Manager, DynamoDB and the rest — not
+# just the services this repo happens to touch. Enumerating those by hand means
+# adding four actions every time a resource type is introduced, and a missing
+# one surfaces as an AccessDenied mid-plan.
+resource "aws_iam_role_policy_attachment" "infra_plan" {
+  count      = length(var.infra_plan_managed_policies)
+  role       = aws_iam_role.infra_plan.name
+  policy_arn = var.infra_plan_managed_policies[count.index]
+}
+
 data "aws_iam_policy_document" "infra_plan_policy" {
   statement {
     effect = "Allow"
