@@ -21,7 +21,6 @@ module "github_oidc" {
   create_oidc_provider         = var.create_oidc_provider
   ecr_repository_arn           = var.ecr_repository_arn
   infra_apply_managed_policies = var.infra_apply_managed_policies
-  infra_plan_managed_policies  = var.infra_plan_managed_policies
 
   # The remote backend, so the CI roles can read the state. Must match
   # backend.tf. terraform plan compares against this; without it init fails

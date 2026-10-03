@@ -40,12 +40,6 @@ variable "infra_apply_managed_policies" {
   default     = ["arn:aws:iam::aws:policy/PowerUserAccess"]
 }
 
-variable "infra_plan_managed_policies" {
-  type        = list(string)
-  description = "Managed policies for infra plan role. Read-only across the account because `terraform plan` refreshes every resource."
-  default     = ["arn:aws:iam::aws:policy/ReadOnlyAccess"]
-}
-
 variable "tags" {
   type        = map(string)
   description = "Tags to apply"

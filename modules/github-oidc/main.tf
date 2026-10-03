@@ -111,6 +111,19 @@ data "aws_iam_policy_document" "ci_ecr_push_policy" {
   }
 }
 
+# Intentionally has no permissions.
+#
+# infra.yml used to run `terraform plan` against the live account through this
+# role. Getting that working took four rounds of IAM — state read, state lock,
+# account-wide refresh, then secretsmanager:GetSecretValue for the Helm provider
+# — because random_password results live in state and plan has to read them back.
+# On a public repository that means any PR author could read the database
+# password out of the tfplan artifact.
+#
+# The role is kept (rather than deleted) because it is still a useful seam: if
+# you ever want gated plans, re-add permissions here rather than in the
+# workflow, and run them from workflow_dispatch behind an environment approval
+# so an untrusted PR cannot reach it.
 resource "aws_iam_role" "infra_plan" {
   name               = "${var.name_prefix}-infra-plan"
   assume_role_policy = data.aws_iam_policy_document.infra_plan_assume.json
@@ -134,84 +147,6 @@ data "aws_iam_policy_document" "infra_plan_assume" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = ["repo:${local.repo_subject}:pull_request"]
-    }
-  }
-}
-
-resource "aws_iam_role_policy" "infra_plan" {
-  name   = "${var.name_prefix}-infra-plan"
-  role   = aws_iam_role.infra_plan.id
-  policy = data.aws_iam_policy_document.infra_plan_policy.json
-}
-
-# `terraform plan` refreshes every resource in the configuration, so it needs
-# read access to EKS, EC2, IAM, Secrets Manager, DynamoDB and the rest — not
-# just the services this repo happens to touch. Enumerating those by hand means
-# adding four actions every time a resource type is introduced, and a missing
-# one surfaces as an AccessDenied mid-plan.
-resource "aws_iam_role_policy_attachment" "infra_plan" {
-  count      = length(var.infra_plan_managed_policies)
-  role       = aws_iam_role.infra_plan.name
-  policy_arn = var.infra_plan_managed_policies[count.index]
-}
-
-data "aws_iam_policy_document" "infra_plan_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = ["*"]
-  }
-
-  dynamic "statement" {
-    for_each = var.ecr_repository_arn == "" ? [] : [1]
-    content {
-      effect = "Allow"
-      actions = [
-        "ecr:DescribeRepositories"
-      ]
-      resources = [var.ecr_repository_arn]
-    }
-  }
-
-  # Read the remote state. `terraform plan` compares against what is already
-  # applied, so without s3:GetObject on the state object init fails with a 403
-  # on HeadObject before plan is ever reached.
-  dynamic "statement" {
-    for_each = var.state_bucket_arn == "" ? [] : [1]
-    content {
-      sid    = "ReadStateForPlan"
-      effect = "Allow"
-      actions = [
-        "s3:GetObject",
-        "s3:GetObjectVersion",
-        "s3:ListBucket",
-      ]
-      resources = [
-        var.state_bucket_arn,
-        "${var.state_bucket_arn}/*",
-      ]
-    }
-  }
-
-  # Lock the state. Terraform's S3 backend takes this lock for `plan` too, not
-  # just `apply`, so plan needs PutItem/DeleteItem as well — a read-only grant
-  # fails with "AccessDeniedException: dynamodb:PutItem" during init.
-  # The lock row lives in DynamoDB, not in the state object, so this does not
-  # give the plan role write access to infrastructure.
-  dynamic "statement" {
-    for_each = var.state_lock_table_arn == "" ? [] : [1]
-    content {
-      sid    = "LockStateForPlan"
-      effect = "Allow"
-      actions = [
-        "dynamodb:GetItem",
-        "dynamodb:PutItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:DescribeTable",
-      ]
-      resources = [var.state_lock_table_arn]
     }
   }
 }
