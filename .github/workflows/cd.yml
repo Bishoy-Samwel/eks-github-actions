@@ -57,7 +57,14 @@ jobs:
           kubectl apply -f k8s/serviceaccount.yaml
           kubectl apply -f k8s/secretstore.yaml
           kubectl apply -f k8s/externalsecrets.yaml
-          kubectl -n app wait --for=condition=Ready secret/myapp-db secret/myapp-redis --timeout=120s
+          for s in myapp-db myapp-redis; do
+            for i in $(seq 1 30); do
+              kubectl -n app get secret "$s" >/dev/null 2>&1 && break
+              echo "waiting for secret $s..."
+              sleep 5
+            done
+            kubectl -n app get secret "$s"
+          done
           kubectl apply -f k8s/mysql.yaml
           kubectl apply -f k8s/redis.yaml
           kubectl -n app rollout status deploy/mysql deploy/redis --timeout=180s
