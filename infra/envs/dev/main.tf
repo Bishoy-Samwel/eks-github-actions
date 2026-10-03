@@ -21,7 +21,15 @@ module "github_oidc" {
   create_oidc_provider         = var.create_oidc_provider
   ecr_repository_arn           = var.ecr_repository_arn
   infra_apply_managed_policies = var.infra_apply_managed_policies
-  tags                         = var.tags
+  infra_plan_managed_policies  = var.infra_plan_managed_policies
+
+  # The remote backend, so the CI roles can read the state. Must match
+  # backend.tf. terraform plan compares against this; without it init fails
+  # with a 403 on HeadObject.
+  state_bucket_arn     = "arn:aws:s3:::myapp-tfstate-042617239394"
+  state_lock_table_arn = "arn:aws:dynamodb:eu-central-1:042617239394:table/myapp-tflock"
+
+  tags = var.tags
 }
 
 module "vpc" {
@@ -172,8 +180,8 @@ provider "helm" {
 module "ingress" {
   source = "../../../modules/ingress"
 
-  namespace              = "ingress-nginx"
-  nginx_ingress_version  = "4.9.1"
-  timeout                = 600
-  tags                   = var.tags
+  namespace             = "ingress-nginx"
+  nginx_ingress_version = "4.9.1"
+  timeout               = 600
+  tags                  = var.tags
 }

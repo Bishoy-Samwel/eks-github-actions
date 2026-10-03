@@ -8,12 +8,24 @@ interview/
 docs/
 
 # ── Terraform ─────────────────────────────────────────────────────────
-# Patterns exist so that copying a .tf file in from the source project
-# cannot commit provider binaries, lock files, or state.
+# Provider binaries and state stay out: .terraform/ is hundreds of MB and
+# *.tfstate holds plaintext resource attributes.
+#
+# The root module's lock file IS committed (see the negation below). It is
+# ~100 lines of provider versions and checksums, and Terraform expects it in
+# version control. Without it `init` silently resolves to whatever provider
+# version is newest, so a plan that passed on Monday can fail on Tuesday with
+# no code change — and the h1: hashes are how a tampered provider is caught.
 .terraform/
 *.tfstate
 *.tfstate.*
+
+# Child modules are never applied directly, so their lock files are just
+# leftovers from a standalone `terraform init` and Terraform ignores them
+# during a root-module apply.
 .terraform.lock.hcl
+!infra/envs/dev/.terraform.lock.hcl
+
 crash.log
 crash.*.log
 *.tfvars
@@ -35,6 +47,7 @@ credentials
 .aws/
 
 # ── Local artefacts ───────────────────────────────────────────────────
+node_modules/
 *.log
 *.tfplan
 tfplan

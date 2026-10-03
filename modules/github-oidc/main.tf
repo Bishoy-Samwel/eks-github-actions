@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "ci_ecr_push_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [
+      values = [
         "repo:${local.repo_subject}:ref:refs/heads/main",
         "repo:${local.repo_subject}:environment:production"
       ]
@@ -144,6 +144,17 @@ resource "aws_iam_role_policy" "infra_plan" {
   policy = data.aws_iam_policy_document.infra_plan_policy.json
 }
 
+# `terraform plan` refreshes every resource in the configuration, so it needs
+# read access to EKS, EC2, IAM, Secrets Manager, DynamoDB and the rest — not
+# just the services this repo happens to touch. Enumerating those by hand means
+# adding four actions every time a resource type is introduced, and a missing
+# one surfaces as an AccessDenied mid-plan.
+resource "aws_iam_role_policy_attachment" "infra_plan" {
+  count      = length(var.infra_plan_managed_policies)
+  role       = aws_iam_role.infra_plan.name
+  policy_arn = var.infra_plan_managed_policies[count.index]
+}
+
 data "aws_iam_policy_document" "infra_plan_policy" {
   statement {
     effect = "Allow"
@@ -161,6 +172,46 @@ data "aws_iam_policy_document" "infra_plan_policy" {
         "ecr:DescribeRepositories"
       ]
       resources = [var.ecr_repository_arn]
+    }
+  }
+
+  # Read the remote state. `terraform plan` compares against what is already
+  # applied, so without s3:GetObject on the state object init fails with a 403
+  # on HeadObject before plan is ever reached.
+  dynamic "statement" {
+    for_each = var.state_bucket_arn == "" ? [] : [1]
+    content {
+      sid    = "ReadStateForPlan"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+      ]
+      resources = [
+        var.state_bucket_arn,
+        "${var.state_bucket_arn}/*",
+      ]
+    }
+  }
+
+  # Lock the state. Terraform's S3 backend takes this lock for `plan` too, not
+  # just `apply`, so plan needs PutItem/DeleteItem as well — a read-only grant
+  # fails with "AccessDeniedException: dynamodb:PutItem" during init.
+  # The lock row lives in DynamoDB, not in the state object, so this does not
+  # give the plan role write access to infrastructure.
+  dynamic "statement" {
+    for_each = var.state_lock_table_arn == "" ? [] : [1]
+    content {
+      sid    = "LockStateForPlan"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable",
+      ]
+      resources = [var.state_lock_table_arn]
     }
   }
 }
@@ -214,6 +265,42 @@ data "aws_iam_policy_document" "infra_apply_iam_policy" {
       "iam:PassRole"
     ]
     resources = ["*"]
+  }
+
+  # PowerUserAccess (attached via var.infra_apply_managed_policies) explicitly
+  # denies S3 and DynamoDB, so the state bucket still needs its own grant or
+  # `terraform apply` fails to lock the state.
+  dynamic "statement" {
+    for_each = var.state_bucket_arn == "" ? [] : [1]
+    content {
+      sid    = "WriteStateForApply"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject",
+        "s3:ListBucket",
+      ]
+      resources = [
+        var.state_bucket_arn,
+        "${var.state_bucket_arn}/*",
+      ]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.state_lock_table_arn == "" ? [] : [1]
+    content {
+      sid    = "LockStateForApply"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable",
+      ]
+      resources = [var.state_lock_table_arn]
+    }
   }
 }
 

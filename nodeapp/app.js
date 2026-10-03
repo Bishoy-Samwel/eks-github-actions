@@ -1,6 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const redis = require('redis');
+const { buildRedisUrl } = require('./lib/redis-url');
 
 const app = express();
 const port = 3000;
@@ -18,7 +19,11 @@ const dbConfig = {
 const redisHost = process.env.REDIS_HOST || 'redis';
 const redisPort = process.env.REDIS_PORT || 6379;
 const redisPassword = process.env.REDIS_PASSWORD || '';
-const redisUrl = `redis://${redisPassword ? `:${encodeURIComponent(redisPassword)}@` : ''}${redisHost}:${redisPort}`;
+const redisUrl = buildRedisUrl({
+  host: redisHost,
+  port: redisPort,
+  password: redisPassword,
+});
 
 const redisClient = redis.createClient({
   url: redisUrl,
@@ -80,7 +85,7 @@ app.get('/', async (req, res) => {
     // Check Redis cache
     const cachedCount = await redisClient.get('visit_count');
     if (cachedCount) {
-      return res.send(`winter is coming. Page visits (cached): ${cachedCount}`);
+      return res.send(`The North remembers. Page visits (cached): ${cachedCount}`);
     }
 
     // Fetch from MySQL
@@ -96,7 +101,7 @@ app.get('/', async (req, res) => {
       // Cache the new count in Redis for 10 seconds
       await redisClient.setEx('visit_count', 10, count.toString());
 
-      res.send(`winter is coming. Page visits: ${count}`);
+      res.send(`The North remembers. Page visits: ${count}`);
     } finally {
       await connection.end();
     }
