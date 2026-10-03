@@ -15,8 +15,10 @@ const dbConfig = {
 };
 
 // Redis connection configuration
+const redisHost = process.env.REDIS_HOST || 'redis';
+const redisPort = process.env.REDIS_PORT || 6379;
 const redisPassword = process.env.REDIS_PASSWORD || '';
-const redisUrl = `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || 6379}${redisPassword ? `:${encodeURIComponent(redisPassword)}` : ''}`;
+const redisUrl = `redis://${redisPassword ? `:${encodeURIComponent(redisPassword)}@` : ''}${redisHost}:${redisPort}`;
 
 const redisClient = redis.createClient({
   url: redisUrl,
