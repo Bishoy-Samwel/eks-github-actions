@@ -31,9 +31,7 @@ jobs:
         with:
           context: ./nodeapp
           push: true
-          tags: |
-            ${{ steps.meta.outputs.image }}
-            042617239394.dkr.ecr.eu-central-1.amazonaws.com/myapp:v1.0.0
+          tags: ${{ steps.meta.outputs.image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

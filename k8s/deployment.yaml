@@ -16,6 +16,6 @@ spec:
       serviceAccountName: app
       containers:
       - name: myapp
-        image: 042617239394.dkr.ecr.eu-central-1.amazonaws.com/myapp:latest
+        image: 042617239394.dkr.ecr.eu-central-1.amazonaws.com/myapp:bootstrap
         ports:
         - containerPort: 3000
