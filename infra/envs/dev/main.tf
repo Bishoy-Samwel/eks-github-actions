@@ -172,8 +172,8 @@ provider "helm" {
 module "ingress" {
   source = "../../../modules/ingress"
 
-  namespace              = "ingress-nginx"
-  nginx_ingress_version  = "4.9.1"
-  timeout                = 600
-  tags                   = var.tags
+  namespace             = "ingress-nginx"
+  nginx_ingress_version = "4.9.1"
+  timeout               = 600
+  tags                  = var.tags
 }
