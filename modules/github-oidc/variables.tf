@@ -40,6 +40,18 @@ variable "infra_apply_managed_policies" {
   default     = ["arn:aws:iam::aws:policy/PowerUserAccess"]
 }
 
+variable "state_bucket_arn" {
+  type        = string
+  description = "ARN of the S3 bucket holding the remote Terraform state. Required: without s3:GetObject on it, `terraform init` cannot read the backend and every plan fails at init. Empty disables the statements."
+  default     = ""
+}
+
+variable "state_lock_table_arn" {
+  type        = string
+  description = "ARN of the DynamoDB table used for state locking. Empty disables the statements."
+  default     = ""
+}
+
 variable "break_glass_principals" {
   type        = list(string)
   description = "Principals allowed to assume break-glass role (empty uses account root with MFA)"

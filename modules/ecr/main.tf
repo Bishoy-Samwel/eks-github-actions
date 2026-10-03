@@ -30,7 +30,7 @@ resource "aws_ecr_lifecycle_policy" "app" {
   policy = jsonencode({
     rules = [
       {
-        description = "Expire untagged images after ${var.untagged_expire_days} days"
+        description  = "Expire untagged images after ${var.untagged_expire_days} days"
         rulePriority = 1
         selection = {
           tagStatus   = "untagged"

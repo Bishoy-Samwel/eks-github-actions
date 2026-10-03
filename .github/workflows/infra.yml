@@ -1,41 +1,55 @@
 name: infra
 on:
   pull_request:
-    paths: ['infra/**', '.github/workflows/infra.yml']
+    paths: ['infra/**', 'modules/**', '.github/workflows/infra.yml']
   workflow_dispatch:
 
+# No AWS credentials are assumed here, deliberately.
+#
+# This workflow used to run `terraform plan` against the live account via the
+# myapp-infra-plan OIDC role. Making that work took four attempts: state access,
+# lock-table write, account-wide read, and finally Kubernetes read for the Helm
+# provider's drift queries. The last of those requires secretsmanager:GetSecretValue,
+# because random_password results live in state and plan has to read them back.
+#
+# That means any PR author could have read the database password out of the tfplan
+# artifact — and this repository is public. Granting it was not worth a read-only
+# plan gate.
+#
+# So: fmt and validate here, plan locally before you apply. Infrastructure is
+# changed by `terraform apply` from a workstation with your own credentials, never
+# from Actions.
+
 jobs:
-  plan:
-    if: github.event_name == 'pull_request'
+  validate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
-      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
-        with:
-          role-to-assume: arn:aws:iam::042617239394:role/myapp-infra-plan
-          aws-region: eu-central-1
+
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
         with:
           terraform_wrapper: false
+
+      # Providers are cached by the .tf files, which change whenever a version
+      # constraint does. The committed .terraform.lock.hcl is what actually pins
+      # the resolved versions.
       - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
         with:
           path: ~/.terraform.d
           key: tfproviders-${{ runner.os }}-${{ hashFiles('infra/**/*.tf') }}
           restore-keys: tfproviders-
-      - run: terraform init
+
+      # No backend: init -backend=false resolves providers without contacting S3,
+      # which is what lets this run with no AWS credentials at all.
+      - run: terraform init -backend=false
         working-directory: infra/envs/dev
+
+      # -recursive with no path walks UP the tree, so from infra/envs/dev it also
+      # covers ../../modules. That is deliberate: it is how the unformatted module
+      # files were caught.
       - run: terraform fmt -check -recursive
+
       - run: terraform validate
         working-directory: infra/envs/dev
-      - run: terraform plan -no-color -out=tfplan
-        working-directory: infra/envs/dev
-      - run: terraform show -no-color tfplan > plan.txt
-        working-directory: infra/envs/dev
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: tfplan
-          path: infra/envs/dev/tfplan

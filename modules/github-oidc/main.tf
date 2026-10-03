@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "ci_ecr_push_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [
+      values = [
         "repo:${local.repo_subject}:ref:refs/heads/main",
         "repo:${local.repo_subject}:environment:production"
       ]
@@ -111,6 +111,19 @@ data "aws_iam_policy_document" "ci_ecr_push_policy" {
   }
 }
 
+# Intentionally has no permissions.
+#
+# infra.yml used to run `terraform plan` against the live account through this
+# role. Getting that working took four rounds of IAM — state read, state lock,
+# account-wide refresh, then secretsmanager:GetSecretValue for the Helm provider
+# — because random_password results live in state and plan has to read them back.
+# On a public repository that means any PR author could read the database
+# password out of the tfplan artifact.
+#
+# The role is kept (rather than deleted) because it is still a useful seam: if
+# you ever want gated plans, re-add permissions here rather than in the
+# workflow, and run them from workflow_dispatch behind an environment approval
+# so an untrusted PR cannot reach it.
 resource "aws_iam_role" "infra_plan" {
   name               = "${var.name_prefix}-infra-plan"
   assume_role_policy = data.aws_iam_policy_document.infra_plan_assume.json
@@ -134,33 +147,6 @@ data "aws_iam_policy_document" "infra_plan_assume" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = ["repo:${local.repo_subject}:pull_request"]
-    }
-  }
-}
-
-resource "aws_iam_role_policy" "infra_plan" {
-  name   = "${var.name_prefix}-infra-plan"
-  role   = aws_iam_role.infra_plan.id
-  policy = data.aws_iam_policy_document.infra_plan_policy.json
-}
-
-data "aws_iam_policy_document" "infra_plan_policy" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = ["*"]
-  }
-
-  dynamic "statement" {
-    for_each = var.ecr_repository_arn == "" ? [] : [1]
-    content {
-      effect = "Allow"
-      actions = [
-        "ecr:DescribeRepositories"
-      ]
-      resources = [var.ecr_repository_arn]
     }
   }
 }
@@ -214,6 +200,42 @@ data "aws_iam_policy_document" "infra_apply_iam_policy" {
       "iam:PassRole"
     ]
     resources = ["*"]
+  }
+
+  # PowerUserAccess (attached via var.infra_apply_managed_policies) explicitly
+  # denies S3 and DynamoDB, so the state bucket still needs its own grant or
+  # `terraform apply` fails to lock the state.
+  dynamic "statement" {
+    for_each = var.state_bucket_arn == "" ? [] : [1]
+    content {
+      sid    = "WriteStateForApply"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject",
+        "s3:ListBucket",
+      ]
+      resources = [
+        var.state_bucket_arn,
+        "${var.state_bucket_arn}/*",
+      ]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.state_lock_table_arn == "" ? [] : [1]
+    content {
+      sid    = "LockStateForApply"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable",
+      ]
+      resources = [var.state_lock_table_arn]
+    }
   }
 }
 
