@@ -163,6 +163,40 @@ data "aws_iam_policy_document" "infra_plan_policy" {
       resources = [var.ecr_repository_arn]
     }
   }
+
+  # Read the remote state. `terraform plan` compares against what is already
+  # applied, so without s3:GetObject on the state object init fails with a 403
+  # on HeadObject before plan is ever reached.
+  dynamic "statement" {
+    for_each = var.state_bucket_arn == "" ? [] : [1]
+    content {
+      sid    = "ReadStateForPlan"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+      ]
+      resources = [
+        var.state_bucket_arn,
+        "${var.state_bucket_arn}/*",
+      ]
+    }
+  }
+
+  # Lock the state so two concurrent plans cannot race.
+  dynamic "statement" {
+    for_each = var.state_lock_table_arn == "" ? [] : [1]
+    content {
+      sid    = "LockStateForPlan"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:DescribeTable",
+      ]
+      resources = [var.state_lock_table_arn]
+    }
+  }
 }
 
 resource "aws_iam_role" "infra_apply" {
@@ -214,6 +248,42 @@ data "aws_iam_policy_document" "infra_apply_iam_policy" {
       "iam:PassRole"
     ]
     resources = ["*"]
+  }
+
+  # PowerUserAccess (attached via var.infra_apply_managed_policies) explicitly
+  # denies S3 and DynamoDB, so the state bucket still needs its own grant or
+  # `terraform apply` fails to lock the state.
+  dynamic "statement" {
+    for_each = var.state_bucket_arn == "" ? [] : [1]
+    content {
+      sid    = "WriteStateForApply"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject",
+        "s3:ListBucket",
+      ]
+      resources = [
+        var.state_bucket_arn,
+        "${var.state_bucket_arn}/*",
+      ]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.state_lock_table_arn == "" ? [] : [1]
+    content {
+      sid    = "LockStateForApply"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable",
+      ]
+      resources = [var.state_lock_table_arn]
+    }
   }
 }
 
