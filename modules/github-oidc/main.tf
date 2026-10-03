@@ -184,7 +184,11 @@ data "aws_iam_policy_document" "infra_plan_policy" {
     }
   }
 
-  # Lock the state so two concurrent plans cannot race.
+  # Lock the state. Terraform's S3 backend takes this lock for `plan` too, not
+  # just `apply`, so plan needs PutItem/DeleteItem as well — a read-only grant
+  # fails with "AccessDeniedException: dynamodb:PutItem" during init.
+  # The lock row lives in DynamoDB, not in the state object, so this does not
+  # give the plan role write access to infrastructure.
   dynamic "statement" {
     for_each = var.state_lock_table_arn == "" ? [] : [1]
     content {
@@ -192,6 +196,8 @@ data "aws_iam_policy_document" "infra_plan_policy" {
       effect = "Allow"
       actions = [
         "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
         "dynamodb:DescribeTable",
       ]
       resources = [var.state_lock_table_arn]
