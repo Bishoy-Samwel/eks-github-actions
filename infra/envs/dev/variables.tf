@@ -31,7 +31,7 @@ variable "create_oidc_provider" {
 variable "ecr_repository_arn" {
   type        = string
   description = "ECR repository ARN if it exists"
-  default     = ""
+  default     = "arn:aws:ecr:eu-central-1:042617239394:repository/myapp"
 }
 
 variable "infra_apply_managed_policies" {
