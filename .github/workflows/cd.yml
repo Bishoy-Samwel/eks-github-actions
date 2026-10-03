@@ -50,10 +50,9 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::042617239394:role/myapp-infra-apply
           aws-region: eu-central-1
-      - uses: aws-actions/amazon-eks-kubeconfig@2f0522fca0b8f6b0b2b32e75c0a9c5c129c1f7b0
-        with:
-          cluster-name: myapp-dev
-          region: eu-central-1
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name myapp-dev --region eu-central-1
       - name: Deploy with kubectl
         run: |
           kubectl apply -f k8s/namespace.yaml
