@@ -71,13 +71,40 @@ module "secrets" {
 module "pod_identity_app" {
   source = "../../../modules/pod-identity"
 
-  role_name           = "${var.name_prefix}-pod-app"
-  cluster_name        = module.eks.cluster_name
-  namespace           = "app"
+  role_name            = "${var.name_prefix}-pod-app"
+  cluster_name         = module.eks.cluster_name
+  namespace            = "app"
   service_account_name = "app"
-  create_association  = false # Create after namespace exists if needed
-  managed_policy_arns = []
-  tags                = var.tags
+  create_association   = true
+  managed_policy_arns  = []
+  tags                 = var.tags
+}
+
+module "pod_identity_external_secrets" {
+  source = "../../../modules/pod-identity"
+
+  role_name            = "${var.name_prefix}-pod-external-secrets"
+  cluster_name         = module.eks.cluster_name
+  namespace            = "external-secrets"
+  service_account_name = "external-secrets"
+  create_association   = true
+  managed_policy_arns  = []
+  inline_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+        Resource = [module.secrets.db_secret_arn, module.secrets.redis_secret_arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["eks:DescribeCluster"]
+        Resource = ["*"]
+      }
+    ]
+  })
+  tags = var.tags
 }
 
 # Platform controllers via Helm

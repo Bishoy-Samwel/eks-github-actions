@@ -15,8 +15,11 @@ const dbConfig = {
 };
 
 // Redis connection configuration
+const redisPassword = process.env.REDIS_PASSWORD || '';
+const redisUrl = `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || 6379}${redisPassword ? `:${encodeURIComponent(redisPassword)}` : ''}`;
+
 const redisClient = redis.createClient({
-  url: `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || 6379}`,
+  url: redisUrl,
 });
 
 // Handle Redis connection errors

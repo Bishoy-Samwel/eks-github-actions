@@ -19,3 +19,28 @@ spec:
         image: 042617239394.dkr.ecr.eu-central-1.amazonaws.com/myapp:bootstrap
         ports:
         - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: DB_HOST
+          value: mysql-service
+        - name: DB_USER
+          value: root
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: myapp-db
+              key: password
+        - name: DB_NAME
+          value: nodejs_app
+        - name: DB_PORT
+          value: "3306"
+        - name: REDIS_HOST
+          value: redis-service
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: myapp-redis
+              key: password

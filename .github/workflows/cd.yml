@@ -55,7 +55,14 @@ jobs:
         run: |
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/serviceaccount.yaml
+          kubectl apply -f k8s/secretstore.yaml
+          kubectl apply -f k8s/externalsecrets.yaml
+          kubectl -n app wait --for=condition=Ready secret/myapp-db secret/myapp-redis --timeout=120s
+          kubectl apply -f k8s/mysql.yaml
+          kubectl apply -f k8s/redis.yaml
+          kubectl -n app rollout status deploy/mysql deploy/redis --timeout=180s
           sed -i "s|image: .*|image: ${{ needs.build-and-push.outputs.image }}|" k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
+          kubectl -n app rollout status deploy/myapp --timeout=180s
