@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "ci_ecr_push_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [
+      values = [
         "repo:${local.repo_subject}:ref:refs/heads/main",
         "repo:${local.repo_subject}:environment:production"
       ]

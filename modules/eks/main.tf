@@ -64,11 +64,11 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
-  enabled_cluster_log_types = var.cluster_log_types
+  enabled_cluster_log_types     = var.cluster_log_types
   bootstrap_self_managed_addons = false
 
   access_config {
-    authentication_mode                      = var.authentication_mode
+    authentication_mode                         = var.authentication_mode
     bootstrap_cluster_creator_admin_permissions = var.bootstrap_cluster_creator_admin_permissions
   }
 
@@ -117,8 +117,8 @@ resource "aws_eks_access_policy_association" "this" {
 
 # Pod Identity agent addon
 resource "aws_eks_addon" "pod_identity_agent" {
-  cluster_name             = aws_eks_cluster.main.name
-  addon_name               = "eks-pod-identity-agent"
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "eks-pod-identity-agent"
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
