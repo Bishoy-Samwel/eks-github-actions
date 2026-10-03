@@ -94,6 +94,21 @@ variable "tags" {
 
 variable "authentication_mode" {
   type        = string
-  description = "EKS authentication mode (API or API_AND_CONFIG_MAP)"
-  default     = "API"
+  description = "EKS authentication mode (API, API_AND_CONFIG_MAP, CONFIG_MAP)"
+  default     = "API_AND_CONFIG_MAP"
+}
+
+variable "bootstrap_cluster_creator_admin_permissions" {
+  type        = bool
+  description = "Give the cluster creator cluster-admin via access entries"
+  default     = true
+}
+
+variable "access_entries" {
+  type = map(object({
+    policies = list(string)
+    username = optional(string)
+  }))
+  description = "Map of principal ARN to EKS access entry policies"
+  default     = {}
 }

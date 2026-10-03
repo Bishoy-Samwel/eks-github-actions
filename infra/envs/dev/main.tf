@@ -41,6 +41,17 @@ module "eks" {
   private_subnet_ids     = module.vpc.private_subnet_ids
   endpoint_public_access = true
   tags                   = var.tags
+
+  access_entries = {
+    (module.github_oidc.infra_apply_role_arn) = {
+      policies = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"]
+      username = "myapp-infra-apply"
+    }
+    (module.github_oidc.infra_plan_role_arn) = {
+      policies = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"]
+      username = "myapp-infra-plan"
+    }
+  }
 }
 
 module "ecr" {

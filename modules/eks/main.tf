@@ -67,11 +67,52 @@ resource "aws_eks_cluster" "main" {
   enabled_cluster_log_types = var.cluster_log_types
   bootstrap_self_managed_addons = false
 
+  access_config {
+    authentication_mode                      = var.authentication_mode
+    bootstrap_cluster_creator_admin_permissions = var.bootstrap_cluster_creator_admin_permissions
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy
   ]
 
   tags = var.tags
+}
+
+# EKS access entries (API_AND_CONFIG_MAP mode)
+resource "aws_eks_access_entry" "this" {
+  for_each = var.access_entries
+
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = each.key
+  type          = "STANDARD"
+  user_name     = coalesce(each.value.username, try(replace(split(":", each.key)[length(split(":", each.key)) - 1], "/", "-"), each.key))
+
+  tags = var.tags
+}
+
+resource "aws_eks_access_policy_association" "this" {
+  for_each = {
+    for pair in flatten([
+      for principal, cfg in var.access_entries : [
+        for policy in cfg.policies : {
+          key       = jsonencode([principal, policy])
+          principal = principal
+          policy    = policy
+        }
+      ]
+    ]) : pair.key => pair
+  }
+
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = each.value.principal
+  policy_arn    = each.value.policy
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.this]
 }
 
 # Pod Identity agent addon
