@@ -3,9 +3,14 @@ interview/
 
 # ── Unpublished working docs ─────────────────────────────────────────
 # The full documentation set is kept locally as the working copy. Only the
-# README is published, so a reader gets the landing page without the
-# internal runbooks. Delete this block to publish docs/ as well.
-docs/
+# README and the diagrams it embeds are published, so a reader gets the
+# pictures without the internal runbooks.
+#
+# docs/ is ignored as a directory, and git cannot re-include a file inside an
+# ignored directory — the directory itself has to be un-ignored first. Hence
+# docs/* with a negation for docs/diagrams/ rather than a bare docs/ rule.
+docs/*
+!docs/diagrams/
 
 # ── Terraform ─────────────────────────────────────────────────────────
 # Provider binaries and state stay out: .terraform/ is hundreds of MB and
